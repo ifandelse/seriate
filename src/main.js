@@ -1,6 +1,7 @@
 var when = require( "when" );
 var fs = require( "fs" );
 var path = require( "path" );
+var mocks = require("./mocks");
 var SqlContext;
 var TransactionContext;
 var callsite = require( "callsite" );
@@ -24,6 +25,8 @@ module.exports = function( SqlContextCtor, TransactionContextCtor ) {
 	SqlContext = SqlContextCtor;
 	TransactionContext = TransactionContextCtor;
 	return {
+		addMock: mocks.addMock,
+		clearMock: mocks.clearMock,
 		getTransactionContext: function( config ) {
 			return new TransactionContext( {
 					connectionCfg: config || _config
@@ -55,6 +58,12 @@ module.exports = function( SqlContextCtor, TransactionContextCtor ) {
 					return data.result;
 				} );
 		},
+		first: function() {
+			var args = Array.prototype.slice.call( arguments, 0 );
+			return this.execute.apply( this, args ).then( function( rows ) {
+				return rows[ 0 ];
+			} );
+		},
 		fromFile: function( p ) {
 			// If we're not dealing with an absolute path, then we
 			// need to get the *calling* code's directory, since
@@ -66,7 +75,7 @@ module.exports = function( SqlContextCtor, TransactionContextCtor ) {
 			}
 			var ext = path.extname( p );
 			p = ( ext === "." ) ? ( p + "sql" ) : ( ext.length === 0 ) ? p + ".sql" : p;
-			return fs.readFileSync( p, { encoding: "utf8" } );
+			return mocks.getMock(p) || fs.readFileSync( p, { encoding: "utf8" } );
 		},
 		setDefaultConfig: function( config ) {
 			_config = config;

@@ -1,5 +1,6 @@
 var _ = require( "lodash" );
 var when = require( "when" );
+var mocks = require("./mocks");
 var machina;
 var sql;
 var Monologue;
@@ -7,6 +8,18 @@ var Monologue;
 function errorHandler( err ) {
 	this.err = err;
 	this.transition( "error" );
+}
+
+function mockedSql( options, mock ) {
+	return when.promise( function( resolve, reject ) {
+		var fulfiller = mock.isError ? reject : resolve;
+		setTimeout( function(){
+			console.log("-----------------")
+			console.log(mock)
+			console.log("-----------------")
+			fulfiller( mock.mockResults( options ) );
+		}, mock.waitTime || 0 );
+	});
 }
 
 function nonPreparedSql( options ) {
@@ -64,8 +77,30 @@ function preparedSql( options ) {
 	} );
 }
 
+function mockedViaFileName( options ) {
+	var mockedQuery = ( options.query && options.query.mockResults ) ? options.query : undefined;
+	var mockedProc  = ( options.procedure && options.procedure.mockResults ) ? options.procedure : undefined;
+	var mockedPrep  = ( options.preparedSql && options.preparedSql.mockResults ) ? options.preparedSql : undefined;
+	return  mockedQuery || mockedProc || mockedPrep;
+}
+
+function mockedViaKeyOrStatement( options, step ) {
+	var stepMock = mocks.getMock( step );
+	var queryMock = mocks.getMock( options.query );
+	var procMock = mocks.getMock( options.procedure );
+	var prepMock = mocks.getMock( options.preparedSql );
+	return stepMock || queryMock || procMock || prepMock;
+}
+
+function hasMock( options, step ) {
+	return mockedViaFileName( options ) || mockedViaKeyOrStatement( options );
+}
+
 function executeSql( options ) {
-	if ( options.query || options.procedure ) {
+	var mock = hasMock( options, this.state );
+	if(mock) {
+		return mockedSql( options, mock );
+	} else if ( options.query || options.procedure ) {
 		return nonPreparedSql.call( this, options );
 	} else {
 		return preparedSql.call( this, options );
